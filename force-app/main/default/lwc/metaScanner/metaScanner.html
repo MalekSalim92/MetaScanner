@@ -1,0 +1,219 @@
+<template>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <lightning-vertical-navigation onselect={handleSelectMetadata}>
+                <lightning-vertical-navigation-section>
+                    <template for:each={metadataOptions} for:item="option">
+                        <lightning-vertical-navigation-item-icon
+                            key={option.value}
+                            label={option.label}
+                            name={option.value}
+                            icon-name={option.icon}>
+                        </lightning-vertical-navigation-item-icon>
+                    </template>
+                </lightning-vertical-navigation-section>
+            </lightning-vertical-navigation>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <lightning-input 
+                type="search"
+                label="Search Metadata"
+                placeholder="Type to search..."
+                value={searchTerm}
+                onchange={handleSearch}>
+            </lightning-input>
+
+            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped clickableTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Link</th>
+                        <template if:true={showAccessButton}>
+                            <th>Access</th>
+                        </template>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={displayedItems} for:item="item">
+                        <tr key={item.id}>
+                            <td>
+                                <a href="javascript:void(0);" data-id={item.id} onclick={handleClick} class="metadata-name-link">
+                                    {item.developerName}
+                                </a>
+                            </td>
+                            <td>
+                                <a href={item.link} target="_blank">
+                                    <lightning-icon icon-name="utility:new_window" size="small" alternative-text="Open metadata"></lightning-icon>
+                                </a>
+                            </td>
+                            <template if:true={showAccessButton}>
+                                <td>
+                                    <lightning-button-icon
+                                        icon-name="utility:preview"
+                                        alternative-text="Show Access"
+                                        title="Show Access"
+                                        data-id={item.id}
+                                        onclick={handleShowAccess} 
+                                        class="access-button">
+                                    </lightning-button-icon>
+                                </td>
+                            </template>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <template if:true={showPagination}>
+                <div class="pagination">
+                    <lightning-button label="Previous" onclick={handlePrevPage} disabled={disablePrevious}></lightning-button>
+                    <span>Page {currentPage} of {totalPages}</span>
+                    <lightning-button label="Next" onclick={handleNextPage} disabled={disableNext}></lightning-button>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Dependencies Modal -->
+    <template if:true={showDependenciesModal}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-text-heading_medium">Dependencies</h2>
+                    <button class="slds-button slds-button_icon slds-modal__close" onclick={closeDependenciesModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="close" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                </header>
+
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template if:true={isLoadingDependencies}>
+                        <lightning-spinner alternative-text="Loading dependencies..." size="medium"></lightning-spinner>
+                    </template>
+
+                    <template if:false={isLoadingDependencies}>
+                        <template if:true={dependencies.length}>
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Link</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={dependencies} for:item="dep">
+                                        <tr key={dep.id}>
+                                            <td>{dep.name}</td>
+                                            <td>{dep.type}</td>
+                                            <td>
+                                                <a href={dep.link} target="_blank">
+                                                    <lightning-icon icon-name="utility:new_window" size="small" alternative-text="Open metadata"></lightning-icon>
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+                        <template if:true={hasNoDependencies}>
+                            <p>No dependencies found for this metadata item.</p>
+                        </template>
+                    </template>
+                </div>
+
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Close" onclick={closeDependenciesModal}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <!-- Access Modal -->
+    <template if:true={showAccessModal}>
+        <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-text-heading_medium">Access Permissions</h2>
+                    <button class="slds-button slds-button_icon slds-modal__close" onclick={closeAccessModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="close" size="small"></lightning-icon>
+                        <span class="slds-assistive-text">Close</span>
+                    </button>
+                </header>
+
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template if:true={isLoadingAccess}>
+                        <lightning-spinner alternative-text="Loading access..." size="medium"></lightning-spinner>
+                    </template>
+
+                    <template if:false={isLoadingAccess}>
+                        <!-- Simple Access Table (for Apex Classes) -->
+                        <template if:true={showSimpleAccess}>
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Has Access</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={accessData.records} for:item="item">
+                                        <tr key={item.id}>
+                                            <td>{item.name}</td>
+                                            <td>{item.type}</td>
+                                            <td>{item.accessSymbol}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+
+                        <!-- CRUD Access Table (for Objects and Fields) -->
+                        <template if:true={showCrudAccess}>
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Read</th>
+                                        <th>Create</th>
+                                        <th>Edit</th>
+                                        <th>Delete</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={accessData.records} for:item="item">
+                                        <tr key={item.id}>
+                                            <td>{item.name}</td>
+                                            <td>{item.type}</td>
+                                            <td>{item.readSymbol}</td>
+                                            <td>{item.createSymbol}</td>
+                                            <td>{item.editSymbol}</td>
+                                            <td>{item.deleteSymbol}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+
+                        <!-- No Access Data -->
+                        <template if:true={hasNoAccess}>
+                            <p>No access records found for this metadata item.</p>
+                        </template>
+                    </template>
+                </div>
+
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Close" onclick={closeAccessModal}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+</template>
